@@ -1,0 +1,39 @@
+# Production stack: the app plus Caddy (automatic HTTPS). Movies stay in
+# Telegram and are streamed on demand over MTProto; nothing is stored here.
+# See docs/PROJECT_GUIDE.md §8.
+#
+#   docker compose up -d --build
+#
+# Configuration comes from `.env` next to this file (a copy of .env.local
+# plus APP_DOMAIN).
+
+services:
+  app:
+    build:
+      context: .
+      secrets: [dotenv]
+    restart: unless-stopped
+    env_file: .env
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?set APP_DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [app]
+
+secrets:
+  dotenv:
+    file: ./.env
+
+volumes:
+  caddy-data: # TLS certificates
+  caddy-config:

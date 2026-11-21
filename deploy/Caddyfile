@@ -1,0 +1,13 @@
+{$APP_DOMAIN} {
+	# Access control lives in the app (email sign-in + owner approval, see
+	# src/proxy.ts), so Caddy only terminates HTTPS here.
+
+	# Compress pages, but never video (already compressed; breaks byte ranges).
+	@pages not path /api/stream/*
+	encode @pages zstd gzip
+
+	reverse_proxy app:3000 {
+		# Pass video bytes through as they arrive instead of buffering.
+		flush_interval -1
+	}
+}

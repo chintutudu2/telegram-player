@@ -1,36 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Telegram Player
 
-## Getting Started
+A private, Netflix-style streaming site for a small group of viewers.
 
-First, run the development server:
+- **Videos are stored in a private Telegram channel.** The server streams only the part being watched over MTProto, at full quality, and stores nothing.
+- **Firestore holds the catalog.** It fits in the free tier.
+- **TMDB adds posters and synopses.**
+- **Viewers need an approved account.** They sign up with email and password, and the owner approves each one at `/admin`.
+
+**Stack:** Next.js 16 (App Router, Cache Components), React 19, Tailwind CSS v4, Firebase (Firestore + Auth), Telegram Bot API + GramJS, TMDB, Docker + Caddy on Oracle Cloud.
+
+**Production:** <https://tplayer.ccodes.in>
+
+## Documentation
+
+**[docs/PROJECT_GUIDE.md](docs/PROJECT_GUIDE.md)** is the complete guide:
+- features and requirements
+- tech stack and architecture
+- Firebase and Telegram setup
+- caption format for movies and series
+- every script and command
+- deployment and troubleshooting
+
+## Quick start
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # fill in: see the guide, §5
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Common commands
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Local development server |
+| `npm run sync` | Import channel posts, backfill posters, prune deleted posts |
+| `npm run telegram -- status` | Check the bots and the webhook |
+| `npm run prepare-videos -- <folder>` | Make videos browser-ready (needs ffmpeg) |
+| `deploy/push.sh [--env]` | Deploy to the server |
+| `npx tsc --noEmit && npm run lint` | Type-check and lint |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Uploading
 
-## Learn More
+Post the video **as a file** to the channel, with a caption like this:
 
-To learn more about Next.js, take a look at the following resources:
+```
+Vacation (2015) | Movie | Comedy, Adventure | 1h 39m
+Brickleberry (2012) | Series | Animation, Comedy | 22m | S01E01 | Episode title
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The guide's §6 has the full caption rules.

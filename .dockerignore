@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+*.log
+*.pem
+*.key
+*service-account*.json
+*-firebase-adminsdk-*.json
+.firebase
+.DS_Store
+.vscode
+.idea

@@ -6,12 +6,20 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync": "node --env-file-if-exists=.env.local scripts/sync.mjs",
+    "telegram": "node --env-file-if-exists=.env.local scripts/telegram-server.mjs",
+    "prepare-videos": "bash scripts/prepare-videos.sh"
   },
   "dependencies": {
+    "firebase": "^13.4.0",
+    "firebase-admin": "^14.5.1",
+    "lucide-react": "^1.75.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",

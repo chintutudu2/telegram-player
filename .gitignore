@@ -22,16 +22,38 @@
 
 # misc
 .DS_Store
-*.pem
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
 
-# debug
+# debug and tool logs (Firebase emulators write *-debug.log here)
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# ---- secrets: never commit ----
+# env files: .env.local (local) and .env (the server's copy, see deploy/push.sh)
 .env*
+!.env.example
+# Firebase service-account keys and CLI state
+*service-account*.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+.firebase/
+.firebaserc
+# private keys, certificates, SSH keys
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+oracle_tplayer*
+# Telegram (GramJS) session files, if ever saved to disk
+*.session
 
 # vercel
 .vercel
