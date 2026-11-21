@@ -44,11 +44,11 @@ The app is a private, Netflix-style streaming site for a small group of about 5�
 
 | Feature | Details |
 | --- | --- |
-| Browse | Home page (all titles), Movies and Series pages, each with a hero carousel, rows, and a genre filter |
+| Browse | Home page (all titles), Movies and Series pages, each with a hero carousel and a genre filter |
 | Categories | Full genre browser (`/categories`). The page exists but the link is hidden for now. |
 | Search | Header search across titles and genres, scoped to the current section |
-| Title details | Popup with poster, backdrop, synopsis, rating, year, duration and genres |
-| Watch page | `/watch/movie-<id>` and `/watch/tv-<series>?episode=<id>`, with a dedicated player and an episode list grouped by season |
+| Title details | Info popup with backdrop, synopsis, rating, year, duration and genres. Its play icon opens the full-screen player. |
+| Watch page | `/watch/movie-<id>` and `/watch/tv-<series>?episode=<id>`, a full-screen player (entered from hero Play). Back arrow, fullscreen toggle and, for series, Next episode plus an Episodes drawer from the right with a season dropdown. Episodes switch without reloading the page. |
 | Player | Native HTML5 video with seeking and picture-in-picture. Pauses automatically when you navigate away. |
 | Subtitles | Optional, per video, in any number of languages; turned on with the player's CC button ([§6.5](#65-subtitles)) |
 | Full-quality playback | Files play exactly as uploaded; nothing is transcoded or downscaled |
@@ -79,12 +79,11 @@ These are deliberate decisions. Don't change them without the owner's agreement.
 4. **Only approved accounts can watch.** Every page, API call and video request needs an approved session.
 5. **Cost is close to zero:** Firestore free tier, Oracle Always Free server, free Let's Encrypt HTTPS.
 6. **The app works with the owner's Mac turned off.** Everything runs on the server.
-7. **TMDB credit** is shown in the sidebar footer whenever TMDB is configured, because TMDB's terms require it.
+7. **TMDB credit** is shown in the page footer whenever TMDB is configured, because TMDB's terms require it.
 8. **Secrets are never printed or logged.** Tools only check whether a key is set.
 9. **Hidden "for now"** (built, but not shown):
-   - The top-bar All/Movies/Series tabs. The left sidebar has them instead.
-   - Sidebar items: Your Videos, Favorites, Categories, Customer Reviews, Support, Logout. The pages still exist under `src/app/(app)/`.
-   - The profile button and notification bell.
+   - Pages without a nav link: Your Videos, Favorites, Categories, Customer Reviews, Support. The pages still exist under `src/app/(app)/`.
+   - The notification bell.
    - Favorite hearts. Turn them on with `siteConfig.features.favorites` in `src/config/site.ts`.
 10. **Each project on `ccodes.in` gets its own subdomain** (e.g. `tplayer.ccodes.in`), never a sub-path.
 
@@ -212,7 +211,7 @@ flowchart LR
 │   ├── app/
 │   │   ├── layout.tsx           # <html>/<body>, font, metadata
 │   │   ├── not-found.tsx        # 404 inside the app shell
-│   │   ├── (app)/               # pages with sidebar + header (AppShell)
+│   │   ├── (app)/               # pages with the top bar (AppShell)
 │   │   │   ├── (catalog)/       # /, /movies, /series, /categories, /watch/[id]  (shows "Firebase not configured" if keys missing)
 │   │   │   ├── admin/           # /admin: approve viewers
 │   │   │   ├── favorites/ videos/ reviews/ support/   # built, hidden from navigation
@@ -226,10 +225,10 @@ flowchart LR
 │   │       ├── stream/[fileId]/ # video + thumbnail relay (byte ranges)
 │   │       └── telegram/        # sync (pull) and webhook (push), secret-guarded
 │   ├── components/
-│   │   ├── layout/              # AppShell, Sidebar, Header, Logo, TmdbCredit, PathnameBoundary
+│   │   ├── layout/              # AppShell, Header (nav + search + profile), Logo, TmdbCredit, PathnameBoundary
 │   │   └── ui/                  # Button, Pill, Badge, Modal, MediaImage, feedback (EmptyState, Skeleton…)
 │   ├── features/                # UI by feature: auth, catalog, home, movies, series, categories,
-│   │                            # favorites, media-detail (modal + MediaPlayer), search, watch
+│   │                            # favorites, media-detail (info modal), search, watch (full-screen player)
 │   ├── hooks/                   # useApiQuery, useMedia, useFavorites, useCarousel, …
 │   ├── services/
 │   │   ├── auth/                # session token, Firebase Auth REST, users repository, actions, notify

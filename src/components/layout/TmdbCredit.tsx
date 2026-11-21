@@ -1,10 +1,10 @@
 /**
  * Attribution required by TMDB's API terms. Rendered only when a TMDB key
- * is configured (see the root layout).
+ * is configured (see AppShell).
  */
 export function TmdbCredit() {
   return (
-    <p className="mt-4 px-2 text-[11px] leading-relaxed text-muted/70">
+    <p className="text-xs leading-relaxed text-muted/70">
       Movie data from{" "}
       <a
         href="https://www.themoviedb.org"

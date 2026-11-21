@@ -1,18 +1,16 @@
-import { Film, LayoutGrid, type LucideIcon, Tv } from "lucide-react";
 import type { MediaScope } from "@/types/media";
 
-/** Catalog sections: the sidebar's links and the search scope. */
+/** Catalog sections: the top bar's links and the search scope. */
 export interface CatalogSection {
   label: string;
   href: string;
-  icon: LucideIcon;
   scope: MediaScope;
 }
 
 export const catalogSections: CatalogSection[] = [
-  { label: "All", href: "/", icon: LayoutGrid, scope: "all" },
-  { label: "Movies", href: "/movies", icon: Film, scope: "movie" },
-  { label: "Series", href: "/series", icon: Tv, scope: "tv" },
+  { label: "Home", href: "/", scope: "all" },
+  { label: "Movies", href: "/movies", scope: "movie" },
+  { label: "Series", href: "/series", scope: "tv" },
 ];
 
 const matchesSection = (section: CatalogSection, pathname: string) =>

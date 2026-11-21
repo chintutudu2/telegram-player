@@ -18,12 +18,18 @@ A private Netflix-style web app for about 5–10 viewers:
 - **Missing Firebase keys show a "Firebase not configured" screen.**
 - **Videos must stay in Telegram.** A self-hosted Bot API server that stores files on disk was rejected; streaming is over MTProto.
 - **Full quality only.** Never transcode or downscale for streaming.
+- **Navigation (2026-11-22):** no sidebar. A top bar holds the logo, Home/Movies/Series links, search, and a profile avatar (the email's initial) whose menu has Sign out.
+- **Catalog pages:** each has only a hero carousel and the genre browser. The Popular / Top Rated / Trending / Binge-Worthy rows were removed at the owner's request.
+- **Playback (2026-11-22):** hero Play (and the play icon in the info popup) opens `/watch/[id]` as a full-screen player. The info popup has no Play or Open player buttons. Series switch episodes from a right-hand drawer with a season dropdown.
+  - Leaving fullscreen (Esc) leaves the player, Netflix-style; so does Esc in a windowed player (unless it closes the drawer). The fullscreen button only appears when not fullscreen.
+  - The video autoplays every time the player is shown (including a kept-alive page reopened via Play). Ref cleanups that pause or exit fullscreen go through `afterLeavingScreen` (`utils/dom.ts`) so React StrictMode's dev-only ref re-attach doesn't undo them.
+- **Name:** the app is called **TPlayer** (`siteConfig.name`, also the browser tab title). The header shows the name without the logo mark; the sign-in screens keep the mark.
+- **Tab icon:** `src/app/icon.svg` (teal rounded square, white play triangle) plus `src/app/apple-icon.png` (180×180, rendered from the SVG). The Next.js `favicon.ico` was removed.
 - **Hidden "for now":**
-  - The top-bar All/Movies/Series tabs. These live in the left sidebar instead.
-  - Sidebar items: Your Videos, Favorites, Categories, Customer Reviews, Support, Logout. The pages still exist under `src/app/`.
-  - The profile button and notification bell.
+  - Pages without a nav link: Your Videos, Favorites, Categories, Customer Reviews, Support. The pages still exist under `src/app/`.
+  - The notification bell.
   - The favorite hearts. Re-enable them with `siteConfig.features.favorites` in `src/config/site.ts`.
-- **TMDB credit:** shown in the sidebar footer when TMDB is configured. TMDB's terms require it.
+- **TMDB credit:** shown in the page footer (`AppShell`) when TMDB is configured. TMDB's terms require it.
 - **Access:** viewers sign up with an email and password, and the owner approves each one at `/admin`. Basic auth was dropped in favour of this.
 - **Hosting:** Oracle Always Free (arm64) at `tplayer.ccodes.in`. Each future project on `ccodes.in` gets its own subdomain, not a sub-path.
 - **Secrets:** never print or log `.env.local` values. Only check whether a key is set.
@@ -119,14 +125,15 @@ Title (Year) | Movie|Series | Category[, Category] | Duration | SxxEyy | Episode
   - `Authorization: Bearer $TELEGRAM_SYNC_SECRET` passes `/api/*`; the load test uses this.
   - `/api/telegram/*` and `/api/auth/*` are public, because they have their own checks.
 - **Route groups:**
-  - `(app)/` holds everything with the sidebar and header.
+  - `(app)/` holds everything with the top bar (`AppShell`).
   - `(auth)/` holds `/login` and `/pending` with a bare layout.
   - The root `not-found.tsx` wraps itself in `AppShell`.
 - **Gotchas:**
   - Redirects from proxy need absolute URLs; Next rewrites same-origin ones to a relative `Location`.
   - In route handlers, `request.url` shows the server's own host (localhost), so they redirect with a **relative** `Location` (`relativeRedirect`).
   - The `next/image` optimizer fetches local images without the viewer's cookie, so `/api/stream` thumbnails load **unoptimized**.
-- **Not done:** a Logout link in the sidebar, which is hidden per the owner's decision. "Sign out" is on `/pending` and `/admin`. There's also no admin link in the sidebar; bookmark `/admin`.
+- **Sign out:** in the profile menu (top right), plus `/pending` and `/admin`. There's no admin link in the UI; bookmark `/admin`.
+- **Profile menu:** `features/auth/UserMenu.tsx` reads the session inside `<Suspense>` and calls `await io()` first, because verifying the token compares its expiry with `Date.now()` (Cache Components flags that during prerendering otherwise).
 
 ## Streaming design (`src/services/telegram/`)
 
@@ -220,11 +227,11 @@ Title (Year) | Movie|Series | Category[, Category] | Duration | SxxEyy | Episode
 - **`services/tmdb/`:** client, mappers, genres.
 - **`features/`:**
   - catalog UI (cards, grid, rows, hero carousel, empty/not-configured screens)
-  - media-detail (modal + `MediaPlayer`)
-  - watch (`WatchView`, `EpisodeList`)
+  - media-detail (info modal only; no player)
+  - watch: `WatchView` (server) → `WatchPlayer` (full-screen player, top bar, next episode), `EpisodeDrawer`, `MediaPlayer`, `PlayLink`, and `WatchFrame` (the fixed full-viewport stage, in `watch/[id]/layout.tsx`)
   - search, home, movies, series, categories, favorites
-- **`components/layout`:** AppShell, Sidebar, Header, Logo, TmdbCredit. **`components/ui`:** Button, Pill, Badge, Modal, MediaImage, feedback.
-- **`config/`:** site, navigation (sidebar sections), categories, catalog limits, image hosts.
+- **`components/layout`:** AppShell, Header, Logo, TmdbCredit, PathnameBoundary. **`components/ui`:** Button, Pill, Badge, Modal, MediaImage, feedback.
+- **`config/`:** site, navigation (top-bar sections), categories, catalog limits, image hosts.
 - **Deploy:** `Dockerfile` (node:24-alpine, multi-stage), `docker-compose.yml` (app + Caddy auto-HTTPS), `deploy/Caddyfile`.
   - `deploy/push.sh user@host [--env]` rsyncs the code, writes the server's `.env` from `.env.local` on the first run, and rebuilds. It uses the SSH key `~/.ssh/oracle_tplayer`.
   - It turns off compression and flushes immediately on `/api/stream`.
@@ -255,5 +262,5 @@ Title (Year) | Movie|Series | Category[, Category] | Duration | SxxEyy | Episode
   - The 10-viewer load test on the server ran 6–10× realtime for every viewer, 16 MB/s in total.
   - The Dockerfile's deps stage installs `python3 make g++`, because `bufferutil` has no prebuilt binary for Alpine arm64.
 - **Unexplained reload loop:** an infinite-reload loop was once seen in the dev log (a burst of recompiles) and couldn't be reproduced. Watch for it.
-- **Restore hidden UI** (favorites, categories, the other sidebar pages) when the owner asks.
+- **Restore hidden UI** (favorites, categories, the other unlinked pages) when the owner asks.
 - **Commit the work** when the owner asks. There are no commits yet beyond the initial one.

@@ -4,32 +4,24 @@ import { createContext, type ReactNode, useCallback, useContext, useMemo, useSta
 import type { Media } from "@/types/media";
 import { MediaDetailModal } from "./MediaDetailModal";
 
-interface OpenOptions {
-  /** Start playback immediately (hero "play" CTA). */
-  autoplay?: boolean;
-}
-
 interface MediaDetailContextValue {
-  openDetails: (media: Media, options?: OpenOptions) => void;
+  openDetails: (media: Media) => void;
 }
 
 const MediaDetailContext = createContext<MediaDetailContextValue | null>(null);
 
 /** Hosts a single app-wide detail modal any card can open. */
 export function MediaDetailProvider({ children }: { children: ReactNode }) {
-  const [active, setActive] = useState<{ media: Media; autoplay: boolean } | null>(null);
+  const [active, setActive] = useState<Media | null>(null);
 
-  const openDetails = useCallback(
-    (media: Media, { autoplay = false }: OpenOptions = {}) => setActive({ media, autoplay }),
-    [],
-  );
+  const openDetails = useCallback((media: Media) => setActive(media), []);
   const close = useCallback(() => setActive(null), []);
   const value = useMemo(() => ({ openDetails }), [openDetails]);
 
   return (
     <MediaDetailContext value={value}>
       {children}
-      <MediaDetailModal media={active?.media ?? null} autoplay={active?.autoplay} onClose={close} />
+      <MediaDetailModal media={active} onClose={close} />
     </MediaDetailContext>
   );
 }

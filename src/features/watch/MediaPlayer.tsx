@@ -5,19 +5,19 @@ import { type ReactNode, useCallback, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { MediaDetails } from "@/types/media";
 import { cn } from "@/utils/cn";
+import { afterLeavingScreen } from "@/utils/dom";
 import type { ApiResponse } from "@/utils/http";
 
 interface MediaPlayerProps {
   media: MediaDetails;
   /** Details still loading (stream URL may not be known yet). */
   isLoading?: boolean;
+  /** Passed to the `<video>`; e.g. `"nofullscreen"` when the page handles fullscreen. */
+  controlsList?: string;
   className?: string;
 }
 
 type Status = "loading" | "ready" | "error";
-
-/** Video elements that already got their one automatic play() call. */
-const autoplayed = new WeakSet<HTMLVideoElement>();
 
 /** Last line of defence: nothing plays on a page the user can't see. */
 function pauseIfHidden(video: HTMLVideoElement) {
@@ -58,7 +58,7 @@ function PlayerMessage({ loading, text, children }: { loading?: boolean; text: s
  * buffering/error states and optional WebVTT subtitle tracks. Falls back to the official trailer when there is
  * no playable stream.
  */
-export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
+export function MediaPlayer({ media, isLoading, controlsList, className }: MediaPlayerProps) {
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState(GENERIC_ERROR);
   const [attempt, setAttempt] = useState(0);
@@ -82,18 +82,18 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
       // Autoplay from here, not with the `autoPlay` attribute: a page can
       // finish loading after the user already left (React Activity renders
       // it hidden), and an `autoPlay` video would start playing unseen. This
-      // ref only attaches while the page is visible. Only the first time,
-      // so returning to the page doesn't resume what was paused.
-      if (!autoplayed.has(video)) {
-        autoplayed.add(video);
-        video.play().catch(() => {}); // blocked by autoplay policy: user presses play
-      }
+      // ref only attaches while the page is visible. The player page is only
+      // ever shown by pressing Play, so showing it again (a kept-alive page)
+      // resumes from where the viewer left off.
+      video.play().catch(() => {}); // blocked by autoplay policy: user presses play
 
       // Navigating away keeps this page mounted but hidden (React Activity),
       // which runs this cleanup: stop the sound, keep the position. A video
       // popped out into picture-in-picture is left playing on purpose.
       return () => {
-        if (document.pictureInPictureElement !== video) video.pause();
+        afterLeavingScreen(video, () => {
+          if (document.pictureInPictureElement !== video) video.pause();
+        });
       };
     },
     [fail],
@@ -131,6 +131,7 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
             src={src}
             poster={media.backdropUrl ?? undefined}
             controls
+            controlsList={controlsList}
             playsInline
             preload="metadata"
             onPlay={(e) => pauseIfHidden(e.currentTarget)}

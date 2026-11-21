@@ -4,6 +4,7 @@ import { ChevronRight, Info, Play } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { MediaImage } from "@/components/ui/MediaImage";
 import { useMediaDetail } from "@/features/media-detail/MediaDetailProvider";
+import { PlayLink } from "@/features/watch/PlayLink";
 import { useCarousel } from "@/hooks/useCarousel";
 import type { Media } from "@/types/media";
 import { cn } from "@/utils/cn";
@@ -59,7 +60,12 @@ export function HeroCarousel({ items, label = "Featured" }: HeroCarouselProps) {
           <div
             key={media.id}
             aria-hidden={i !== index}
-            className={cn("absolute inset-0 transition-opacity duration-700", i === index ? "opacity-100" : "opacity-0")}
+            // Crossfade plus a slow zoom: the incoming slide settles from 110%
+            // over the slide's lifetime; the outgoing one drifts forward as it fades.
+            className={cn(
+              "absolute inset-0 [transition:opacity_1s_ease,scale_7s_ease-out]",
+              i === index ? "scale-100 opacity-100" : "scale-110 opacity-0",
+            )}
           >
             <MediaImage
               src={media.backdropUrl ?? media.posterUrl}
@@ -72,24 +78,32 @@ export function HeroCarousel({ items, label = "Featured" }: HeroCarouselProps) {
         <div className="absolute inset-0 bg-linear-to-t from-[#0a5f69]/90 via-[#0a5f69]/10 to-black/20" />
         <div className="absolute inset-0 bg-linear-to-r from-black/40 via-transparent to-transparent" />
 
-        <MetaBadges media={current} fields={["duration", "year"]} className="absolute top-5 left-5" />
+        <MetaBadges
+          key={`badges:${current.id}`}
+          media={current}
+          fields={["duration", "year"]}
+          className="absolute top-5 left-5 animate-fade-in"
+        />
         <Dots count={items.length} index={index} onSelect={goTo} className="absolute top-6 right-5 md:hidden" />
 
-        <button
-          type="button"
-          onClick={() => openDetails(current, { autoplay: true })}
+        <PlayLink
+          media={current}
           aria-label={`Play ${current.title}`}
-          className="glass absolute top-1/2 left-1/2 grid size-16 -translate-1/2 cursor-pointer place-items-center rounded-full text-white transition-all duration-300 hover:scale-110 hover:shadow-glow sm:size-20"
+          className="glass absolute top-1/2 left-1/2 grid size-16 -translate-1/2 place-items-center rounded-full text-white transition-all duration-300 hover:scale-110 hover:shadow-glow sm:size-20"
         >
           <Play className="ml-1 size-7 fill-current sm:size-8" aria-hidden />
-        </button>
+        </PlayLink>
 
-        <div className="absolute inset-x-0 bottom-0 flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6">
+        {/* Keyed per slide so the text rises in again on every change. */}
+        <div
+          key={`caption:${current.id}`}
+          className="absolute inset-x-0 bottom-0 flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between sm:p-6"
+        >
           <div className="min-w-0 space-y-3">
-            <h2 className="truncate text-3xl font-semibold text-white drop-shadow-lg sm:text-4xl lg:text-5xl">
+            <h2 className="animate-rise-in truncate text-3xl font-semibold text-white drop-shadow-lg sm:text-4xl lg:text-5xl">
               {current.title}
             </h2>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex animate-rise-in flex-wrap items-center gap-2 [animation-delay:120ms]">
               <Button variant="glass" size="sm" onClick={() => openDetails(current)} className="bg-black/25">
                 <Info className="size-4" aria-hidden />
                 More info
@@ -97,7 +111,11 @@ export function HeroCarousel({ items, label = "Featured" }: HeroCarouselProps) {
               <MetaBadges media={current} fields={["rating", "votes"]} className="sm:hidden" />
             </div>
           </div>
-          <MetaBadges media={current} fields={["rating", "votes"]} className="hidden shrink-0 sm:flex" />
+          <MetaBadges
+            media={current}
+            fields={["rating", "votes"]}
+            className="hidden shrink-0 animate-rise-in [animation-delay:200ms] sm:flex"
+          />
         </div>
       </div>
 
@@ -112,7 +130,7 @@ export function HeroCarousel({ items, label = "Featured" }: HeroCarouselProps) {
               onClick={() => goTo(at(i + 1))}
               aria-label={`Show ${media.title}`}
               className={cn(
-                "absolute cursor-pointer overflow-hidden rounded-r-[2rem] transition-all duration-500 hover:brightness-110",
+                "absolute animate-fade-in cursor-pointer overflow-hidden rounded-r-[2rem] transition-all duration-500 hover:brightness-110",
                 i === 0 ? "top-[9%] -left-8 z-[5] h-[84%] w-[70%] opacity-90" : "top-[15%] left-[45%] h-[72%] w-[50%] opacity-50",
               )}
             >

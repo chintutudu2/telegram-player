@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ComponentProps } from "react";
+import type { ComponentProps } from "react";
 import { cn } from "@/utils/cn";
 import { interactive, tone } from "./styles";
 
@@ -32,7 +32,7 @@ export const buttonStyles = ({ variant = "glass", size = "md", className }: Butt
     className,
   );
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & ButtonStyleProps;
+type ButtonProps = ComponentProps<"button"> & ButtonStyleProps;
 
 export function Button({ variant, size, className, type = "button", ...props }: ButtonProps) {
   return <button type={type} className={buttonStyles({ variant, size, className })} {...props} />;

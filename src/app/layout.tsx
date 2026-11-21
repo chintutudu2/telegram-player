@@ -7,6 +7,7 @@ const outfit = Outfit({ variable: "--font-outfit", subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: { default: siteConfig.name, template: `%s · ${siteConfig.name}` },
+  applicationName: siteConfig.name,
   description: siteConfig.description,
 };
 
@@ -16,7 +17,7 @@ export const viewport: Viewport = {
 };
 
 /**
- * Bare document. The app chrome (sidebar, header) lives in `(app)/layout.tsx`;
+ * Bare document. The app chrome (top bar, footer) lives in `(app)/layout.tsx`;
  * the sign-in and approval screens in `(auth)/` render without it.
  */
 export default function RootLayout({ children }: LayoutProps<"/">) {

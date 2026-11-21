@@ -1,28 +1,24 @@
-"use client";
-
-import { type ReactNode, useCallback, useState } from "react";
+import type { ReactNode } from "react";
+import { UserMenu } from "@/features/auth/UserMenu";
 import { MediaDetailProvider } from "@/features/media-detail/MediaDetailProvider";
+import { isTmdbConfigured } from "@/services/tmdb/tmdb.client";
 import { Header } from "./Header";
-import { Sidebar } from "./Sidebar";
+import { TmdbCredit } from "./TmdbCredit";
 
-interface AppShellProps {
-  children: ReactNode;
-  /** Rendered at the bottom of the sidebar. */
-  sidebarFooter?: ReactNode;
-}
-
-export function AppShell({ children, sidebarFooter }: AppShellProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-
+/** Signed-in chrome: top bar, page content, TMDB credit and the media-detail modal. */
+export function AppShell({ children }: { children: ReactNode }) {
   return (
     <MediaDetailProvider>
-      <Sidebar open={drawerOpen} onClose={closeDrawer} footer={sidebarFooter} />
-      <div className="flex min-h-dvh min-w-0 flex-col lg:pl-72 xl:pl-80">
-        <Header onMenuClick={() => setDrawerOpen(true)} />
-        <main id="main" className="flex-1 space-y-12 px-4 pt-4 pb-16 sm:px-6 lg:px-8">
+      <div className="flex min-h-dvh min-w-0 flex-col">
+        <Header profile={<UserMenu />} />
+        <main id="main" className="flex-1 space-y-12 px-4 pt-6 pb-16 sm:px-6 lg:px-8">
           {children}
         </main>
+        {isTmdbConfigured() && (
+          <footer className="border-t border-white/5 px-4 py-6 sm:px-6 lg:px-8">
+            <TmdbCredit />
+          </footer>
+        )}
       </div>
     </MediaDetailProvider>
   );
