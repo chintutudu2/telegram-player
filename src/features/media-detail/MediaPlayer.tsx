@@ -16,6 +16,15 @@ interface MediaPlayerProps {
 
 type Status = "loading" | "ready" | "error";
 
+/** Video elements that already got their one automatic play() call. */
+const autoplayed = new WeakSet<HTMLVideoElement>();
+
+/** Last line of defence: nothing plays on a page the user can't see. */
+function pauseIfHidden(video: HTMLVideoElement) {
+  if (document.pictureInPictureElement === video) return;
+  if (typeof video.checkVisibility === "function" && !video.checkVisibility()) video.pause();
+}
+
 const GENERIC_ERROR = "This video couldn’t be played. The file may be unavailable or in a format your browser doesn’t support.";
 
 /** Same-origin stream endpoints return a JSON reason (e.g. 413 too big). */
@@ -70,6 +79,16 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
       if (video.error) void fail();
       else if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) setStatus("ready");
 
+      // Autoplay from here, not with the `autoPlay` attribute: a page can
+      // finish loading after the user already left (React Activity renders
+      // it hidden), and an `autoPlay` video would start playing unseen. This
+      // ref only attaches while the page is visible. Only the first time,
+      // so returning to the page doesn't resume what was paused.
+      if (!autoplayed.has(video)) {
+        autoplayed.add(video);
+        video.play().catch(() => {}); // blocked by autoplay policy: user presses play
+      }
+
       // Navigating away keeps this page mounted but hidden (React Activity),
       // which runs this cleanup: stop the sound, keep the position. A video
       // popped out into picture-in-picture is left playing on purpose.
@@ -80,7 +99,9 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
     [fail],
   );
 
-  // A hidden iframe can't be paused from outside, so blank it while hidden.
+  // A hidden iframe can't be paused from outside, so it only gets its real
+  // src while visible (this ref doesn't attach on a page rendered hidden)
+  // and is blanked again when hidden.
   const trailerSrc = media.trailerKey
     ? `https://www.youtube-nocookie.com/embed/${media.trailerKey}?autoplay=1&rel=0`
     : undefined;
@@ -110,9 +131,9 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
             src={src}
             poster={media.backdropUrl ?? undefined}
             controls
-            autoPlay
             playsInline
             preload="metadata"
+            onPlay={(e) => pauseIfHidden(e.currentTarget)}
             onWaiting={() => setStatus("loading")}
             onCanPlay={() => setStatus("ready")}
             onPlaying={() => setStatus("ready")}
@@ -163,7 +184,7 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
     return (
       <iframe
         ref={silenceWhenHidden}
-        src={trailerSrc}
+        src="about:blank"
         title={`${media.title} trailer`}
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowFullScreen
