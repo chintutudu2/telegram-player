@@ -35,6 +35,8 @@ export interface TelegramMessage {
   caption?: string;
   video?: TelegramVideo;
   document?: TelegramDocument;
+  /** The post this one replies to (subtitle files reply to their video). */
+  reply_to_message?: TelegramMessage;
 }
 
 export interface TelegramUpdate {

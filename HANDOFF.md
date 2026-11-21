@@ -70,6 +70,27 @@ Title (Year) | Movie|Series | Category[, Category] | Duration | SxxEyy | Episode
   - Keep **the same title and year on every episode**, because that's how episodes group (`seriesKey` = slug of the title).
 - **Categories** split on `,`, `/` or `&`. The first one is the primary category; the rest are merged into genres.
 
+### Subtitles
+
+- **Upload:** a `.srt`/`.vtt` file posted as a **reply** to the video's channel post, with the language as its caption (`English`, `en`…). The file name's language code (`Movie.eng.vtt`) is the fallback.
+- **Ingest:** `telegram.ingest.ts` → `attachSubtitle()` adds it to the video doc's `subtitles` array, keyed by the reply's message id. Prune also removes subtitles whose reply was deleted. `removeReplacedMedia` carries them over when the video file is replaced.
+- **Serve:** `/api/subtitles/<fileId>` (`serveSubtitle()` in `telegram.stream.ts`) downloads via the Bot API, decodes UTF-8 or Windows-1252, and converts SRT → WebVTT (`subtitle.parser.ts`). It's always same-origin, because `<track>` needs that.
+- **Player:** `<track kind="subtitles">` per entry. Off by default.
+
+### Series upload: `npm run upload-series` (`scripts/upload-series.mjs`)
+
+- **Laptop only,** for now. It refuses to run inside Docker.
+- **Account:** it logs in as the **owner's own Telegram account** (GramJS user session in `~/.config/telegram-player/session`, outside the repo), because bots can't upload more than 50 MB through the Bot API.
+- **One season folder per run:**
+  1. `prepare-videos.sh`
+  2. captions from the file name, the ffprobe duration and TMDB episode titles, validated by importing `caption.parser.ts` directly (Node 24 type stripping)
+  3. per episode: post the video as a document with a thumbnail, then reply with the subtitle(s), then the next episode
+  4. `POST /api/telegram/sync` plus a check of `/api/media/tv/<seriesKey>`, using the `TELEGRAM_SYNC_SECRET` service token
+- **Subtitles:** separate subtitle files come in with `--subs <folder>`, matched by `SxxEyy`.
+- **No duplicates:** episodes already in the app are skipped. Resume state is in `<ready>/.telegram-upload.json`.
+- **Webhook race:** updates can arrive in parallel, so a subtitle reply may beat its video. `ingestSubtitle` then ingests the video from `reply_to_message` first.
+- **To do:** a similar `upload-movie` script (one file, `Title (Year) | Movie | …` caption). The owner asked for this to be noted.
+
 ### Preparing files: `npm run prepare-videos -- <folder>`
 
 `scripts/prepare-videos.sh` writes browser-ready MP4s to `<folder>/ready/`. It needs `brew install ffmpeg`, which wasn't installed on the Mac last time it was checked.

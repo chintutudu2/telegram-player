@@ -50,6 +50,7 @@ The app is a private, Netflix-style streaming site for a small group of about 5�
 | Title details | Popup with poster, backdrop, synopsis, rating, year, duration and genres |
 | Watch page | `/watch/movie-<id>` and `/watch/tv-<series>?episode=<id>`, with a dedicated player and an episode list grouped by season |
 | Player | Native HTML5 video with seeking and picture-in-picture. Pauses automatically when you navigate away. |
+| Subtitles | Optional, per video, in any number of languages; turned on with the player's CC button ([§6.5](#65-subtitles)) |
 | Full-quality playback | Files play exactly as uploaded; nothing is transcoded or downscaled |
 | Sign-in | `/login`: sign in, request access (sign up), or reset a forgotten password by email |
 | Approval screen | `/pending`: shown until the owner approves the account, with "Check again" and "Sign out" |
@@ -271,6 +272,7 @@ flowchart LR
 | `thumbnailUrl` | string \| null | Proxy URL of Telegram's thumbnail |
 | `mimeType`, `fileSize` | | |
 | `telegram` | `{ chatId, messageId }` | Where the post lives. MTProto streaming and deletion detection use it. |
+| `subtitles` | array | `{ fileId, fileUniqueId, label, lang, messageId }` per subtitle file posted as a reply to the video ([§6.5](#65-subtitles)). Video ingestion never writes it, so caption edits keep it. |
 | `tmdb` | object | `{ lookup, found, tmdbId, overview, posterUrl, backdropUrl, rating, voteCount, genres, releaseYear }` |
 | `overview`, `posterUrl`, `backdropUrl`, `rating`, `genres` | optional | Values set by hand **override** TMDB |
 | `createdAt`, `updatedAt` | timestamp | `createdAt` is the original post time and sets the "trending" order |
@@ -463,7 +465,7 @@ Each bot can stream to about 3 viewers at once.
 2. Put it in `.env.local` as `TELEGRAM_ADMIN_IDS=<your id>`.
 3. Open a **private chat with your main bot** (search its username) and press **Start**. Bots can't DM you until you've done this.
 
-From then on the bot DMs you when someone requests access. Note that videos you send directly to the bot are also accepted, but **always upload through the channel**. Only channel posts can be streamed by all the helper bots; see [§6.6](#66-limits-and-rules).
+From then on the bot DMs you when someone requests access. Note that videos you send directly to the bot are also accepted, but **always upload through the channel**. Only channel posts can be streamed by all the helper bots; see [§6.7](#67-limits-and-rules).
 
 **H. Optional tuning**
 
@@ -501,6 +503,58 @@ npm run sync                    # import channel posts (only while no webhook is
 
 ## 6. Uploading movies and series
 
+### 6.0 The easy way for series: `npm run upload-series`
+
+This runs on the owner's laptop only, one season folder at a time. It does everything §6.1–6.5 describe by hand:
+
+1. prepares the videos
+2. posts each episode as a file (no compression) with its caption
+3. replies with that episode's subtitle, then moves on to the next episode
+4. updates the catalog and checks that every episode arrived
+
+```bash
+npm run upload-series -- login        # once: sign in to your own Telegram account (phone + code)
+
+# 1. Preview. Nothing is posted.
+npm run upload-series -- ~/Downloads/"American Dad"/"Season 1" \
+  --title "American Dad! (2005)" --category "Animation, Comedy" --dry-run
+
+# 2. Post. Same command without --dry-run.
+npm run upload-series -- ~/Downloads/"American Dad"/"Season 1" \
+  --title "American Dad! (2005)" --category "Animation, Comedy"
+
+# Subtitles came as separate files? Add --subs with their folder:
+npm run upload-series -- ~/Downloads/"American Dad"/"Season 1" \
+  --title "American Dad! (2005)" --category "Animation, Comedy" --subs ~/Downloads/"American Dad"/"Season 1"/Subs
+```
+
+- **Caption:** `American Dad! (2005) | Series | Animation, Comedy | 22m | S01E01 | Pilot`.
+  - Season and episode come from the file name (`S01E01`, `s1e1` or `1x01`).
+  - The duration is measured from the file.
+  - The episode title comes from the file name (release tags like `1080p WEB-DL` are removed). If the file name has none, it comes from TMDB, and the preview marks it "from TMDB — check it", because download numbering sometimes differs from TMDB's.
+  - Every caption is checked with the app's own parser before anything is posted.
+- **Subtitles:**
+  - The script picks one per language: the largest file.
+  - Separate files (`--subs`, sub-folders included) are matched to episodes by the `SxxEyy` in their file or folder name, and they win over subtitles extracted from the video.
+  - Files under 1 KB (empty "forced" tracks) are skipped.
+  - Episodes without subtitles are posted without.
+  - The reply's caption is the language from the file name, or `--sub-lang` (default `English`).
+- **Never posts twice:**
+  - Episodes already in the app, including ones posted by hand, are skipped.
+  - Progress is saved in `ready/.telegram-upload.json`, so after a dropped connection you just run the same command again.
+- **At the end:**
+  - It runs the catalog sync on `https://$DEPLOY_DOMAIN` (change with `--app-url`; skip with `--no-sync`).
+  - It checks that every posted episode and its subtitles are in the app, and lists anything missing.
+  - When everything is confirmed, it deletes the `ready` folder (keep it with `--keep-ready`). If anything is missing, the folder stays, so a re-run doesn't convert again.
+- **Episodes appear one by one** as they're posted, because the webhook adds each post right away.
+- **Skipped files:** extras without an episode number are listed and skipped. Pass the `ready` folder itself to skip the ffmpeg step.
+- **Why your account:** bots can only upload 50 MB through the Bot API. The script logs in as you (MTProto) and posts exactly as you would by hand, so the webhook adds each episode as usual.
+- **The session file** (`~/.config/telegram-player/session`, outside the project) is as good as being logged in to your Telegram.
+  - Keep it private.
+  - `npm run upload-series -- logout` revokes it.
+  - It also appears under Telegram → Settings → Devices.
+- **Movies:** not covered yet. A similar `upload-movie` script is planned. Until then, upload movies by hand (§6.2).
+
 ### 6.1 Prepare the files (recommended)
 
 Browsers play **MP4 (H.264 or HEVC video, AAC audio)** reliably. MKV, AC-3 or DTS audio and some other formats don't play in browsers. Fix files before uploading:
@@ -517,6 +571,8 @@ The script writes browser-ready copies to `<folder>/ready/` and never touches th
 - **AAC audio** is kept. AC-3, DTS and similar formats become AAC 192k.
 - **The file index moves to the front** ("faststart"), so playback starts quickly.
 - **MKV, MOV and AVI become MP4.**
+- **Text subtitles inside the file** (SRT, ASS, mov_text…) are saved as `<name>.<lang>.vtt` next to the MP4, one per track. Picture-based subtitles (PGS/VobSub from Blu-ray or DVD rips) can't be converted and are skipped.
+- **Subtitle files beside the original** (`<name>.srt`, `<name>.en.srt`, `.vtt`) are copied into `ready/` too.
 - **Re-running** skips files that are already finished.
 
 ### 6.2 Post to the channel
@@ -570,7 +626,26 @@ Brickleberry (2012) | Series | Animation, Comedy | 22m | S02E01
 Inception (2010) | Movie
 ```
 
-### 6.5 Editing, replacing and deleting
+### 6.5 Subtitles
+
+Viewers turn subtitles on and off with the player's normal **CC / subtitles** button. They're off by default.
+
+1. Get a `.srt` or `.vtt` file: `npm run prepare-videos` extracts them from MKVs, or use one you downloaded. SRT is converted to WebVTT automatically when it's played.
+2. In the channel, **reply to the video's post** and attach the subtitle file as a file.
+3. Put the **language** in the caption: `English`, `en`, `Hindi`, `English SDH`… This is the name shown in the player's menu. Without a caption, a language code in the file name is used (`Movie.eng.vtt`), and otherwise it's called "Subtitles".
+4. Send. It's attached within seconds (or on the next `npm run sync` in pull mode).
+
+- **Several languages:** send one reply per file.
+- **Series:** reply to each episode's post separately.
+- **Fix a language name:** edit the subtitle post's caption.
+- **Replace a file:** edit the subtitle post and replace the file.
+- **Remove:** delete the subtitle post and run sync.
+- If the video's post is replaced with a new file, its subtitles stay attached.
+- The sync report lists "subtitle file is not a reply" when a file was sent on its own. Delete it and send it again as a reply.
+
+Subtitle files are served by `/api/subtitles/<fileId>`, which needs a signed-in, approved session like everything else.
+
+### 6.6 Editing, replacing and deleting
 
 | You want to… | Do this |
 | --- | --- |
@@ -580,7 +655,7 @@ Inception (2010) | Movie
 | Change a poster or synopsis by hand | In the Firebase console, set `posterUrl`, `overview`, `rating` or `genres` on the `media` doc. Values set by hand override TMDB. Changes show up within an hour. |
 | Re-run TMDB for a title | Change its title or year in the caption; TMDB is only looked up again when those change. Run sync to backfill anything missing. |
 
-### 6.6 Limits and rules
+### 6.7 Limits and rules
 
 - **Size:** up to **2 GB** per file, or **4 GB** with Telegram Premium.
 - **Upload through the channel only.** Streaming uses the channel post, which all 4 bots can read. Videos sent straight to the bot can only be streamed by the main bot, which limits them to about 3 viewers.
@@ -604,6 +679,7 @@ Inception (2010) | Movie
 | `npm run telegram -- set-webhook` | Make Telegram push new posts to `https://$APP_DOMAIN/api/telegram/webhook` |
 | `npm run telegram -- delete-webhook` | Switch back to pull mode (`npm run sync`) |
 | `npm run prepare-videos -- <folder>` | Make videos browser-ready (ffmpeg) |
+| `npm run upload-series -- <season folder> --title "Name (Year)" --category "…" [--subs <folder>]` | Laptop only. Prepare, caption and post a season episode by episode with subtitle replies, then sync and check the catalog. `--dry-run` previews; `login`/`logout` once ([§6.0](#60-the-easy-way-for-series-npm-run-upload-series)) |
 
 ### 7.2 Telegram helper (`scripts/telegram-server.mjs`)
 

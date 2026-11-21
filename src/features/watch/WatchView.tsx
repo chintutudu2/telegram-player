@@ -29,7 +29,7 @@ export async function WatchView({ params, searchParams }: WatchViewProps) {
 
   const episodes = details.episodeList ?? [];
   const current = episodes.find((e) => e.id === episodeParam) ?? episodes[0];
-  const playable = current ? { ...details, streamUrl: current.streamUrl } : details;
+  const playable = current ? { ...details, streamUrl: current.streamUrl, subtitles: current.subtitles } : details;
   const backHref = details.type === "movie" ? "/movies" : "/series";
 
   return (

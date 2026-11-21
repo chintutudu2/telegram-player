@@ -9,7 +9,8 @@
     "lint": "eslint",
     "sync": "node --env-file-if-exists=.env.local scripts/sync.mjs",
     "telegram": "node --env-file-if-exists=.env.local scripts/telegram-server.mjs",
-    "prepare-videos": "bash scripts/prepare-videos.sh"
+    "prepare-videos": "bash scripts/prepare-videos.sh",
+    "upload-series": "node --env-file-if-exists=.env.local --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/upload-series.mjs"
   },
   "dependencies": {
     "firebase": "^13.4.0",

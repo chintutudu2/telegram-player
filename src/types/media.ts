@@ -40,6 +40,14 @@ export interface Media {
   episodes?: number;
 }
 
+/** A WebVTT subtitle track for the player. */
+export interface SubtitleTrack {
+  src: string;
+  label: string;
+  /** ISO 639-1 code, or null when unknown. */
+  lang: string | null;
+}
+
 /** A single playable episode of a library series. */
 export interface MediaEpisode {
   id: string;
@@ -50,6 +58,7 @@ export interface MediaEpisode {
   runtime: number | null;
   thumbnailUrl: string | null;
   streamUrl: string;
+  subtitles: SubtitleTrack[];
 }
 
 export interface MediaDetails extends Media {
@@ -58,6 +67,8 @@ export interface MediaDetails extends Media {
   trailerKey?: string;
   /** Direct playable URL (the Telegram stream proxy for library items). */
   streamUrl?: string;
+  /** Subtitle tracks for `streamUrl`. */
+  subtitles?: SubtitleTrack[];
   /** Library series only, ordered by season then episode. */
   episodeList?: MediaEpisode[];
 }

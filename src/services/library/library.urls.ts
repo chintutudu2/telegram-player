@@ -28,5 +28,11 @@ export const telegramFileUrl = (fileId: string) => `${STREAM_BASE}/${fileId}`;
 export const streamUrlFor = (fileId: string | null | undefined) =>
   isPlaceholderFileId(fileId) ? PREVIEW_STREAM_URL : telegramFileUrl(fileId!);
 
+/**
+ * WebVTT URL for a subtitle file. Always this app's own route (never
+ * NEXT_PUBLIC_STREAM_BASE_URL): it converts SRT, and <track> needs same origin.
+ */
+export const subtitleUrl = (fileId: string) => `/api/subtitles/${fileId}`;
+
 /** Cache tag shared by every catalog read; revalidated after each sync. */
 export const CATALOG_TAG = "catalog";

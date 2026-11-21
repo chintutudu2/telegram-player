@@ -2,10 +2,11 @@ import "server-only";
 
 import { cacheLife, cacheTag } from "next/cache";
 import { CATALOG_TAG } from "@/services/library/library.urls";
-import { findByFileId, loadLibrary } from "@/services/library/media.repository";
+import { findByFileId, findSubtitle, loadLibrary } from "@/services/library/media.repository";
 import { jsonError } from "@/utils/route";
 import { isMtprotoConfigured } from "./mtproto.client";
 import { streamVideoFromTelegram } from "./mtproto.stream";
+import { decodeSubtitle, toWebVtt } from "./subtitle.parser";
 import { TelegramApiError, telegramApi } from "./telegram.client";
 import type { TelegramConfig } from "./telegram.config";
 import type { TelegramFile } from "./telegram.types";
@@ -123,6 +124,48 @@ async function streamViaBotApi(config: TelegramConfig, fileId: string, request: 
     }
     throw error;
   }
+}
+
+/** Only subtitles referenced by the library may be served. */
+async function isLibrarySubtitle(fileId: string): Promise<boolean> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag(CATALOG_TAG);
+  return findSubtitle(await loadLibrary(), fileId) !== null;
+}
+
+/** Subtitle files are text; anything bigger is not a subtitle. */
+const MAX_SUBTITLE_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Serves a library subtitle file as WebVTT (the only format <track>
+ * accepts), converting SubRip on the fly. Small, so read in one go.
+ */
+export async function serveSubtitle(config: TelegramConfig, fileId: string): Promise<Response> {
+  if (!(await isLibrarySubtitle(fileId))) return jsonError(404, "Unknown subtitle file.");
+
+  for (const fresh of [false, true]) {
+    const file = await resolveFile(config, fileId, fresh);
+    if (!file.file_path) return jsonError(502, "Telegram did not return a file path.");
+    if ((file.file_size ?? 0) > MAX_SUBTITLE_BYTES) return jsonError(413, "Subtitle file is too large.");
+
+    const upstream = await fetch(telegramApi.fileUrl(config, file.file_path), { signal: AbortSignal.timeout(15_000) });
+    if (upstream.status === 404) {
+      fileCache.delete(fileId); // stale link: retry once with a fresh getFile
+      continue;
+    }
+    if (!upstream.ok) return jsonError(502, `Telegram file server returned ${upstream.status}.`);
+
+    const vtt = toWebVtt(decodeSubtitle(new Uint8Array(await upstream.arrayBuffer())));
+    return new Response(vtt, {
+      headers: {
+        "Content-Type": "text/vtt; charset=utf-8",
+        "Cache-Control": "private, max-age=86400",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  }
+  return jsonError(502, "Telegram file link expired.");
 }
 
 export async function streamTelegramFile(config: TelegramConfig, fileId: string, request: Request): Promise<Response> {

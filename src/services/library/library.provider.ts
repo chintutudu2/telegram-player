@@ -7,9 +7,10 @@ import {
   type MediaEpisode,
   type MediaListKind,
   type MediaScope,
+  type SubtitleTrack,
   toMediaId,
 } from "@/types/media";
-import { streamUrlFor } from "./library.urls";
+import { streamUrlFor, subtitleUrl } from "./library.urls";
 import { filterByType, loadLibrary, seriesEpisodes } from "./media.repository";
 import type { MediaRecord } from "./media.schema";
 
@@ -56,6 +57,9 @@ function seriesMedia(episodes: MediaRecord[]): Media {
   };
 }
 
+const subtitleTracks = (record: MediaRecord): SubtitleTrack[] =>
+  record.subtitles.map(({ fileId, label, lang }) => ({ src: subtitleUrl(fileId), label, lang }));
+
 const toEpisode = (record: MediaRecord): MediaEpisode => ({
   id: record.id,
   title: record.episodeTitle ?? (record.episode ? `Episode ${record.episode}` : record.title),
@@ -64,6 +68,7 @@ const toEpisode = (record: MediaRecord): MediaEpisode => ({
   runtime: minutes(record.durationSeconds) ?? null,
   thumbnailUrl: record.thumbnailUrl,
   streamUrl: streamUrlFor(record.telegramFileId),
+  subtitles: subtitleTracks(record),
 });
 
 interface Entry {
@@ -117,12 +122,15 @@ export const libraryProvider: MediaProvider = {
 
     if (type === "movie") {
       const record = library.find((r) => r.id === id && r.type === "movie");
-      return record ? { ...movieMedia(record), streamUrl: streamUrlFor(record.telegramFileId) } : null;
+      return record
+        ? { ...movieMedia(record), streamUrl: streamUrlFor(record.telegramFileId), subtitles: subtitleTracks(record) }
+        : null;
     }
 
     const episodes = seriesEpisodes(library, id);
     if (episodes.length === 0) return null;
     const episodeList = episodes.map(toEpisode);
-    return { ...seriesMedia(episodes), episodeList, streamUrl: episodeList[0].streamUrl };
+    const [first] = episodeList;
+    return { ...seriesMedia(episodes), episodeList, streamUrl: first.streamUrl, subtitles: first.subtitles };
   },
 };

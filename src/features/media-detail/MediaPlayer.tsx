@@ -46,7 +46,7 @@ function PlayerMessage({ loading, text, children }: { loading?: boolean; text: s
 
 /**
  * HTML5 player for the Telegram stream proxy (or preview clip), with
- * buffering/error states. Falls back to the official trailer when there is
+ * buffering/error states and optional WebVTT subtitle tracks. Falls back to the official trailer when there is
  * no playable stream.
  */
 export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
@@ -118,7 +118,18 @@ export function MediaPlayer({ media, isLoading, className }: MediaPlayerProps) {
             onPlaying={() => setStatus("ready")}
             onError={fail}
             className="size-full"
-          />
+          >
+            {/* Off by default; the browser's CC / subtitles menu turns them on. */}
+            {media.subtitles?.map((track) => (
+              <track
+                key={track.src}
+                kind="subtitles"
+                src={track.src}
+                label={track.label}
+                srcLang={track.lang ?? undefined}
+              />
+            ))}
+          </video>
         )}
 
         {status === "loading" && (

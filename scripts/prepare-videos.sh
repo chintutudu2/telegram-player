@@ -9,6 +9,10 @@
 #   - audio browsers can't play (AC-3, DTS, …) is converted to AAC
 #   - the file index moves to the front so playback starts quickly
 #   - MKV/MOV/AVI become MP4
+#   - text subtitles inside the file become <name>.<lang>.vtt next to it, and
+#     subtitle files beside the original (<name>.srt, <name>.en.srt…) are
+#     copied over. Post each one as a reply to its video in the channel.
+#     (Picture-based subtitles — PGS/VobSub from Blu-ray/DVD — can't be converted.)
 # Requires ffmpeg: brew install ffmpeg
 
 set -eo pipefail
@@ -50,6 +54,31 @@ for f in "${files[@]}"; do
 
   echo "• $name — $vnote, $anote"
   ffmpeg -hide_banner -loglevel error -i "$f" "${args[@]}" -movflags +faststart "$target"
+
+  # Embedded text subtitles → WebVTT, one file per track: "<index>,<codec>,<lang>".
+  while IFS=, read -r index codec lang; do
+    [ -n "$index" ] || continue
+    case "$codec" in
+      subrip|ass|ssa|webvtt|mov_text|text) ;;
+      *) echo "    subtitle track $index ($codec) is picture-based — skipped"; continue ;;
+    esac
+    sub="$out/$name.${lang:-und}.vtt"
+    n=2
+    while [ -e "$sub" ]; do sub="$out/$name.${lang:-und}-$n.vtt"; n=$((n + 1)); done
+    if ffmpeg -nostdin -hide_banner -loglevel error -i "$f" -map "0:$index" -c:s webvtt "$sub"; then
+      echo "    subtitles: $(basename "$sub")"
+    else
+      rm -f "$sub"
+      echo "    subtitle track $index couldn't be converted — skipped"
+    fi
+  done < <(ffprobe -v error -select_streams s -show_entries stream=index,codec_name:stream_tags=language -of csv=p=0 "$f")
+
+  # Subtitle files sitting next to the original.
+  for s in "$dir/$name".srt "$dir/$name".*.srt "$dir/$name".vtt "$dir/$name".*.vtt; do
+    [ -e "$s" ] || continue # the non-wildcard names stay literal when missing
+    cp "$s" "$out/" && echo "    subtitles: $(basename "$s")"
+  done
 done
 
 echo "Done. Upload the files in: $out"
+[ -n "$FROM_UPLOAD_SCRIPT" ] || echo "Post each .vtt/.srt as a reply to its video post (caption: the language, e.g. English)."

@@ -1,11 +1,12 @@
 import "server-only";
 
-import { Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/services/firebase/firebase.admin";
 import {
   type LibraryType,
   MEDIA_COLLECTION,
   type MediaDocument,
+  type SubtitleDocument,
   SYSTEM_COLLECTION,
   type TmdbEnrichment,
   tmdbLookupKey,
@@ -25,9 +26,12 @@ export async function upsertMediaRecord(id: string, { createdAt, ...fields }: Me
     );
 }
 
+const subtitlesOf = (value: unknown): SubtitleDocument[] => (Array.isArray(value) ? value : []);
+
 /**
  * When a channel post's file is replaced (edit → replace file), Telegram
- * gives it a new file id, so remove the entry for the old file.
+ * gives it a new file id, so remove the entry for the old file. Its
+ * subtitles still reply to the same post, so they move to the new entry.
  */
 export async function removeReplacedMedia(chatId: number, messageId: number, keepId: string): Promise<number> {
   const snapshot = await media()
@@ -35,8 +39,37 @@ export async function removeReplacedMedia(chatId: number, messageId: number, kee
     .where("telegram.messageId", "==", messageId)
     .get();
   const stale = snapshot.docs.filter((doc) => doc.id !== keepId);
+  const carried = stale.flatMap((doc) => subtitlesOf(doc.get("subtitles")));
+  if (carried.length) await media().doc(keepId).update({ subtitles: FieldValue.arrayUnion(...carried) });
   await Promise.all(stale.map((doc) => doc.ref.delete()));
   return stale.length;
+}
+
+/**
+ * Adds a subtitle to a video's entry, replacing any earlier file from the
+ * same reply (its file was swapped). Returns the video's title, or null if
+ * the video isn't in the library.
+ */
+export async function attachSubtitle(videoId: string, subtitle: SubtitleDocument): Promise<string | null> {
+  const ref = media().doc(videoId);
+  return getAdminDb().runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
+    if (!doc.exists) return null;
+    const others = subtitlesOf(doc.get("subtitles")).filter((s) => s.messageId !== subtitle.messageId);
+    tx.update(ref, { subtitles: [...others, subtitle], updatedAt: Timestamp.now() });
+    return String(doc.get("title") ?? videoId);
+  });
+}
+
+/** Removes subtitles whose reply posts were deleted. */
+export async function detachSubtitles(videoId: string, messageIds: number[]): Promise<void> {
+  const ref = media().doc(videoId);
+  await getAdminDb().runTransaction(async (tx) => {
+    const doc = await tx.get(ref);
+    if (!doc.exists) return;
+    const kept = subtitlesOf(doc.get("subtitles")).filter((s) => !messageIds.includes(s.messageId));
+    tx.update(ref, { subtitles: kept });
+  });
 }
 
 export interface TelegramMediaRef {
@@ -44,15 +77,24 @@ export interface TelegramMediaRef {
   title: string;
   chatId: number;
   messageId: number;
+  subtitles: { label: string; messageId: number }[];
 }
 
 /** Documents that came from a Telegram post (hand-entered ones are skipped). */
 export async function listTelegramMedia(): Promise<TelegramMediaRef[]> {
   const snapshot = await media().get();
   return snapshot.docs.flatMap((doc) => {
-    const { title, telegram } = doc.data();
+    const { title, telegram, subtitles } = doc.data();
     return telegram?.chatId && telegram?.messageId
-      ? [{ id: doc.id, title: String(title ?? doc.id), chatId: telegram.chatId, messageId: telegram.messageId }]
+      ? [
+          {
+            id: doc.id,
+            title: String(title ?? doc.id),
+            chatId: telegram.chatId,
+            messageId: telegram.messageId,
+            subtitles: subtitlesOf(subtitles).map(({ label, messageId }) => ({ label, messageId })),
+          },
+        ]
       : [];
   });
 }

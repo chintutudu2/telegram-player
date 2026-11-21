@@ -34,7 +34,7 @@ if (!response.ok || !body?.data) {
   fail(`Sync failed (${response.status}): ${body?.error?.message ?? "unexpected response"}`);
 }
 
-const { received, saved, skipped, enrichment, webhookActive, pruned } = body.data;
+const { received, saved, skipped, subtitles = [], enrichment, webhookActive, pruned } = body.data;
 
 const POSTER_NOTE = {
   found: "poster ✓",
@@ -52,6 +52,7 @@ if (webhookActive) {
   console.log(`✔ Telegram: ${received} new update(s), ${saved.length} saved, ${skipped.length} skipped`);
 }
 for (const item of saved) console.log(`   + ${item.title} (${item.type}) — ${POSTER_NOTE[item.poster] ?? ""}`);
+for (const item of subtitles) console.log(`   + ${item.title} — ${item.label} subtitles`);
 for (const item of skipped) console.log(`   – update ${item.updateId}: ${item.reason}${SKIP_HINTS[item.reason] ?? ""}`);
 
 if (!enrichment?.enabled) {
@@ -74,5 +75,9 @@ if (pruned?.enabled) {
   else if (pruned.removed.length) {
     console.log(`✔ Removed ${pruned.removed.length} title(s) whose Telegram post was deleted`);
     for (const title of pruned.removed) console.log(`   − ${title}`);
+  }
+  if (!pruned.skipped && pruned.removedSubtitles?.length) {
+    console.log(`✔ Removed ${pruned.removedSubtitles.length} subtitle file(s) whose Telegram post was deleted`);
+    for (const name of pruned.removedSubtitles) console.log(`   − ${name}`);
   }
 }

@@ -32,6 +32,21 @@ export interface TmdbEnrichment {
 export const tmdbLookupKey = (title: string, type: LibraryType, year: number | null) =>
   `${type}:${title.trim().toLowerCase()}:${year ?? ""}`;
 
+/**
+ * A subtitle file posted as a reply to the video's channel post. Stored in
+ * the video document's `subtitles` array; never written by video ingestion,
+ * so caption edits (merge writes) keep it.
+ */
+export interface SubtitleDocument {
+  fileId: string;
+  fileUniqueId: string;
+  label: string;
+  /** ISO 639-1 code, or null when unknown. */
+  lang: string | null;
+  /** The reply's message id (same chat as the video). */
+  messageId: number;
+}
+
 /** Shape written by ingestion (timestamps as epoch ms; converted on write). */
 export interface MediaDocument {
   title: string;
@@ -68,4 +83,5 @@ export interface MediaRecord extends Omit<MediaDocument, "tmdb"> {
   rating?: number;
   voteCount?: number;
   genres?: string[];
+  subtitles: SubtitleDocument[];
 }

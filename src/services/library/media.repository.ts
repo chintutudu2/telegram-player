@@ -6,7 +6,7 @@ import { normalizeCategory, splitCategories } from "@/config/categories";
 import { getCatalogDb, isFirebaseWebConfigured } from "@/services/firebase/firebase.web";
 import { parseDuration, slugify } from "@/services/telegram/caption.parser";
 import { CATALOG_TAG } from "./library.urls";
-import { type LibraryType, MEDIA_COLLECTION, type MediaRecord } from "./media.schema";
+import { type LibraryType, MEDIA_COLLECTION, type MediaRecord, type SubtitleDocument } from "./media.schema";
 
 /**
  * Read side of the Firestore `media` collection (Firebase Web SDK).
@@ -34,6 +34,23 @@ function libraryType(value: unknown): LibraryType {
 
 const genreList = (value: unknown) =>
   Array.isArray(value) ? value.filter((g): g is string => typeof g === "string").map(normalizeCategory) : undefined;
+
+const subtitleList = (value: unknown): SubtitleDocument[] =>
+  Array.isArray(value)
+    ? value.flatMap((s: DocumentData) =>
+        str(s?.fileId)
+          ? [
+              {
+                fileId: str(s.fileId),
+                fileUniqueId: str(s.fileUniqueId),
+                label: str(s.label) || "Subtitles",
+                lang: str(s.lang) || null,
+                messageId: num(s.messageId) ?? 0,
+              },
+            ]
+          : [],
+      )
+    : [];
 
 /**
  * Lenient mapping so documents added by hand in the Firebase console work
@@ -88,6 +105,7 @@ function toRecord(id: string, data: DocumentData): MediaRecord | null {
     rating: num(data.rating) ?? num(tmdb.rating) ?? undefined,
     voteCount: num(data.voteCount) ?? num(tmdb.voteCount) ?? undefined,
     genres: [...new Set([...categories.slice(1), ...otherGenres])],
+    subtitles: subtitleList(data.subtitles),
   };
 }
 
@@ -135,6 +153,15 @@ export function findByFileId(records: MediaRecord[], fileId: string) {
   for (const record of records) {
     if (record.telegramFileId === fileId) return { record, kind: "video" as const };
     if (record.thumbnailFileId === fileId) return { record, kind: "thumbnail" as const };
+  }
+  return null;
+}
+
+/** The library subtitle with this Telegram file id, if any. */
+export function findSubtitle(records: MediaRecord[], fileId: string): SubtitleDocument | null {
+  for (const record of records) {
+    const match = record.subtitles.find((s) => s.fileId === fileId);
+    if (match) return match;
   }
   return null;
 }

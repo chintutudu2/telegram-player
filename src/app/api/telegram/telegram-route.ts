@@ -35,7 +35,13 @@ export function telegramIngestRoute(
         const result = await ingest(config, request);
         if (result instanceof Response) return result;
         // Expire immediately so the next page view shows new uploads.
-        if (result.saved.length > 0 || result.enrichment?.enriched.length || result.pruned?.removed.length) {
+        if (
+          result.saved.length > 0 ||
+          result.subtitles.length > 0 ||
+          result.enrichment?.enriched.length ||
+          result.pruned?.removed.length ||
+          result.pruned?.removedSubtitles.length
+        ) {
           revalidateTag(CATALOG_TAG, { expire: 0 });
         }
         return jsonOk(result);
