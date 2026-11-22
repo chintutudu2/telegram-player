@@ -7,6 +7,7 @@ import type { MediaDetails } from "@/types/media";
 import { cn } from "@/utils/cn";
 import { afterLeavingScreen } from "@/utils/dom";
 import type { ApiResponse } from "@/utils/http";
+import { attachSubtitles } from "./subtitles";
 
 interface MediaPlayerProps {
   media: MediaDetails;
@@ -65,19 +66,35 @@ export function MediaPlayer({ media, isLoading, controlsList, className }: Media
   const [preferTrailer, setPreferTrailer] = useState(false);
 
   const src = media.streamUrl;
+  // Stable per episode (it comes from the episode list), so the video's ref
+  // callback below doesn't re-run on unrelated re-renders.
+  const subtitles = media.subtitles;
 
-  const fail = useCallback(async () => {
-    setStatus("error");
-    if (src) setError(await explainFailure(src));
-  }, [src]);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
+
+  const fail = useCallback(
+    async (mediaError?: MediaError | null) => {
+      setStatus("error");
+      // The browser's own reason, shown small: tells a decode or format
+      // problem (codes 3/4) from a network one (code 2) on devices we can't
+      // debug directly.
+      setErrorDetail(mediaError ? `Error ${mediaError.code}${mediaError.message ? `: ${mediaError.message}` : ""}` : null);
+      if (src) setError(await explainFailure(src));
+    },
+    [src],
+  );
 
   const syncWithElement = useCallback(
     (video: HTMLVideoElement | null) => {
       if (!video) return;
       // A server-rendered <video> can error or become playable before React
       // hydrates and attaches listeners, so read its state once on mount.
-      if (video.error) void fail();
+      if (video.error) void fail(video.error);
       else if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) setStatus("ready");
+
+      // Off until picked in the browser's CC / subtitles menu. Script-added,
+      // never <track> children: see subtitles.ts (iPhone/iPad "Error 4").
+      attachSubtitles(video, subtitles);
 
       // Autoplay from here, not with the `autoPlay` attribute: a page can
       // finish loading after the user already left (React Activity renders
@@ -96,7 +113,7 @@ export function MediaPlayer({ media, isLoading, controlsList, className }: Media
         });
       };
     },
-    [fail],
+    [fail, subtitles],
   );
 
   // A hidden iframe can't be paused from outside, so it only gets its real
@@ -138,20 +155,9 @@ export function MediaPlayer({ media, isLoading, controlsList, className }: Media
             onWaiting={() => setStatus("loading")}
             onCanPlay={() => setStatus("ready")}
             onPlaying={() => setStatus("ready")}
-            onError={fail}
+            onError={(e) => void fail(e.currentTarget.error)}
             className="size-full"
-          >
-            {/* Off by default; the browser's CC / subtitles menu turns them on. */}
-            {media.subtitles?.map((track) => (
-              <track
-                key={track.src}
-                kind="subtitles"
-                src={track.src}
-                label={track.label}
-                srcLang={track.lang ?? undefined}
-              />
-            ))}
-          </video>
+          />
         )}
 
         {status === "loading" && (
@@ -163,6 +169,7 @@ export function MediaPlayer({ media, isLoading, controlsList, className }: Media
         {status === "error" && (
           <div className="absolute inset-0">
             <PlayerMessage text={error}>
+              {errorDetail && <p className="text-xs text-muted/70">{errorDetail}</p>}
               <div className="flex flex-wrap justify-center gap-2">
                 <Button size="sm" onClick={retry}>
                   <RotateCcw className="size-4" aria-hidden />
